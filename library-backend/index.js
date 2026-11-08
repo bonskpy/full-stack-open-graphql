@@ -1,5 +1,6 @@
 const { ApolloServer } = require("@apollo/server");
 const { startStandaloneServer } = require("@apollo/server/standalone");
+const { v1: uuid } = require("uuid");
 
 let authors = [
   {
@@ -112,8 +113,13 @@ const typeDefs = /* GraphQL */ `
   type Query {
     bookCount: Int!
     authorCount: Int!
-    allBooks(author: String): [Book!]!
+    allBooks(author: String, genre: String): [Book!]!
     allAuthors: [Author!]!
+  }
+
+  type Mutation {
+    addBook(title: String!, author: String!, published: Int!, genres: [String!]!): Book!
+    editAuthor(name: String!, setBornTo: Int!): Author
   }
 `;
 
@@ -127,11 +133,41 @@ const resolvers = {
   Query: {
     bookCount: () => books.length,
     authorCount: () => authors.length,
-    allBooks: (_, args) => {
-      if (!args.author) return books;
-      return books.filter((b) => b.author === args.author);
+    allBooks: (_, { author, genre }) => {
+      let filteredBooks = books;
+      if (author && author != "") {
+        filteredBooks = filteredBooks.filter((b) => b.author === args.author);
+      }
+      if (genre && genre != "") {
+        filteredBooks = filteredBooks.filter((b) =>
+          b.genres.includes(args.genre)
+        );
+      }
+      return filteredBooks;
     },
     allAuthors: () => authors,
+  },
+  Mutation: {
+    addBook: (_, args) => {
+      const newBook = { ...args, id: uuid() };
+      const authorIsKnown = authors.some((author) =>
+        author.name === newBook.author
+      );
+      books = books.concat(newBook);
+      if (!authorIsKnown) {
+        authors = authors.concat({ name: newBook.author, id: uuid() });
+      }
+      return newBook;
+    },
+    editAuthor: (_, args) => {
+      const authorToEdit = authors.find((a) => a.name === args.name);
+      if (!authorToEdit) return null;
+      const updated = { ...authorToEdit, born: args.setBornTo };
+      authors = authors.map((author) =>
+        author.id === authorToEdit.id ? updated : author
+      );
+      return updated;
+    },
   },
 };
 
