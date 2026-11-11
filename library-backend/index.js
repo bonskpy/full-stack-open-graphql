@@ -1,6 +1,7 @@
 const { ApolloServer } = require("@apollo/server");
 const { startStandaloneServer } = require("@apollo/server/standalone");
 const { v1: uuid } = require("uuid");
+const { GraphQLError } = require("graphql");
 
 let authors = [
   {
@@ -130,26 +131,39 @@ const resolvers = {
       return authored.length;
     },
   },
+
   Query: {
     bookCount: () => books.length,
     authorCount: () => authors.length,
     allBooks: (_, { author, genre }) => {
       let filteredBooks = books;
-      if (author && author != "") {
-        filteredBooks = filteredBooks.filter((b) => b.author === args.author);
+      if (author) {
+        filteredBooks = filteredBooks.filter((b) => b.author === author);
       }
-      if (genre && genre != "") {
-        filteredBooks = filteredBooks.filter((b) =>
-          b.genres.includes(args.genre)
-        );
+      if (genre) {
+        filteredBooks = filteredBooks.filter((b) => b.genres.includes(genre));
       }
       return filteredBooks;
     },
     allAuthors: () => authors,
   },
+
   Mutation: {
     addBook: (_, args) => {
       const newBook = { ...args, id: uuid() };
+      const bookIsKnown = books.some((
+        book,
+      ) => (
+        book.title == newBook.title &&
+        book.published == newBook.published &&
+        book.author == newBook.author
+      ));
+      if (bookIsKnown) {
+        throw new GraphQLError(
+          `Book must be unique: ${newBook.title}, ${newBook.published}`,
+          { extensions: { code: "DUPLICATE" } },
+        );
+      }
       const authorIsKnown = authors.some((author) =>
         author.name === newBook.author
       );
